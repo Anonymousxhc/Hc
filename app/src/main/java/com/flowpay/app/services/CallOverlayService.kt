@@ -454,7 +454,7 @@ class CallOverlayService : Service() {
         Handler(Looper.getMainLooper()).post {
             Toast.makeText(
                 this,
-                "Overlay permission required for call protection. Please grant permission in Settings.",
+                R.string.error_overlay_permission_required,
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -489,7 +489,7 @@ class CallOverlayService : Service() {
         Handler(Looper.getMainLooper()).post {
             Toast.makeText(
                 this,
-                "Failed to show call protection overlay. Please try again.",
+                R.string.error_overlay_failed,
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -910,7 +910,7 @@ class CallOverlayService : Service() {
                 Log.w(TAG, "Failed to terminate call programmatically")
                 Toast.makeText(
                     this,
-                    "Unable to end the call automatically. Please hang up manually.",
+                    R.string.error_end_call_failed,
                     Toast.LENGTH_LONG
                 ).show()
             }
