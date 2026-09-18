@@ -398,6 +398,7 @@ class SmsTransactionParserTest {
 
         assertNotNull(first)
         assertEquals("TXN17000000000004321", first!!.transactionId)
+        assertNull("a generated id is not a bank reference", first.bankRef)
         assertEquals("deterministic inputs must produce the same id", first.transactionId, second!!.transactionId)
     }
 
@@ -415,6 +416,9 @@ class SmsTransactionParserTest {
         // ends in "_42" can still carry entirely the wrong prefix, which is
         // exactly how the defect below survived this file.
         assertEquals("512233440091_42", result!!.transactionId)
+        // The clock suffix is part of the row key only. The reference a user
+        // copies to their bank must be the bank's own value, unchanged.
+        assertEquals("512233440091", result.bankRef)
     }
 
     // "paid to SHARMA STORE" hides an "id" inside "pa|id|", and the reference

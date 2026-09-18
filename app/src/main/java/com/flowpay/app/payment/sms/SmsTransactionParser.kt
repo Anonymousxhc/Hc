@@ -20,7 +20,13 @@ data class SimpleTransaction(
     val upiId: String? = null,
     val transactionType: String = "DEBIT",
     val recipientName: String? = null, // who money was sent to
-    val phoneNumber: String? = null // phone number if available
+    val phoneNumber: String? = null, // phone number if available
+    /**
+     * The bank's own reference exactly as it appears in the SMS, or null when
+     * the SMS carries none. [transactionId] is a row key derived from it and
+     * must never be shown to a user as the reference.
+     */
+    val bankRef: String? = null
 ) : Parcelable
 
 /**
@@ -237,7 +243,10 @@ object SmsTransactionParser {
         if (!isTransactionMessage(body)) return null
         val amount = extractAmount(body) ?: return null
 
-        val transactionId = extractTransactionId(body, clock) ?: generateTransactionId(clock, randomSuffix)
+        val bankRef = extractBankReference(body)
+        // The clock suffix keeps standalone rows unique when a bank reuses a
+        // reference. It belongs to the row key only, never to bankRef.
+        val transactionId = bankRef?.let { "${it}_${clock()}" } ?: generateTransactionId(clock, randomSuffix)
         val upiId = extractUPIId(body)
         val transactionType = detectTransactionType(body)
         val (recipientName, phoneNumber) = extractRecipientInfo(body, transactionType)
@@ -271,7 +280,8 @@ object SmsTransactionParser {
             upiId = upiId,
             transactionType = transactionType,
             recipientName = recipientName,
-            phoneNumber = phoneNumber
+            phoneNumber = phoneNumber,
+            bankRef = bankRef
         )
     }
 
@@ -458,7 +468,8 @@ object SmsTransactionParser {
         return (nonBalance.ifEmpty { candidates }).first().second
     }
 
-    internal fun extractTransactionId(body: String, clock: () -> Long): String? {
+    /** The bank's reference as written in the SMS, or null. */
+    internal fun extractBankReference(body: String): String? {
         val patterns = listOf(
             // The \b are load-bearing. Without them "id" matched inside
             // "pa|id| to SHARMA STORE" and captured the following word, so a
@@ -475,11 +486,8 @@ object SmsTransactionParser {
             val match = regex.find(body)
 
             if (match != null && match.groups.size > 1) {
-                val baseId = match.groups[1]?.value
-                if (!baseId.isNullOrEmpty()) {
-                    // Add a timestamp to make it unique even if ref number repeats
-                    return "${baseId}_${clock()}"
-                }
+                val reference = match.groups[1]?.value
+                if (!reference.isNullOrEmpty()) return reference
             }
         }
 

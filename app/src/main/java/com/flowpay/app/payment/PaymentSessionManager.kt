@@ -279,7 +279,7 @@ class PaymentSessionManager(
                     transactionId = txnId,
                     phoneNumber = phone,
                     amount = amount,
-                    bankReference = parsed.transactionId,
+                    bankReference = parsed.bankRef,
                     timestamp = verifiedAt
                 )
             }

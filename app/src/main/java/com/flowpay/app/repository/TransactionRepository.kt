@@ -173,7 +173,7 @@ class TransactionRepository private constructor(context: Context) :
         return transactionDao.confirmTransaction(
             transactionId = transactionId,
             status = status,
-            bankRef = parsed.transactionId,
+            bankRef = parsed.bankRef,
             bankName = parsed.bankName,
             smsExcerpt = parsed.smsExcerpt,
             upiId = parsed.upiId,

@@ -97,7 +97,7 @@ class PaymentSessionManagerTest {
                 ?: return 0
             rows[transactionId] = row.copy(
                 status = status,
-                bankRef = parsed.transactionId,
+                bankRef = parsed.bankRef,
                 bankName = parsed.bankName,
                 smsExcerpt = parsed.smsExcerpt,
                 // Mirrors the DAO: sparser SMS data never erases known values;
@@ -145,13 +145,14 @@ class PaymentSessionManagerTest {
         amount: String = "100",
         transactionType: String = "DEBIT"
     ) = SimpleTransaction(
-        transactionId = "HDFC123456",
+        transactionId = "HDFC123456_0",
         amount = amount,
         status = status,
         bankName = "HDFC Bank",
         smsExcerpt = "₹$amount debited — HDFC Bank · Ref HDFC123456",
         timestamp = 0L,
-        transactionType = transactionType
+        transactionType = transactionType,
+        bankRef = "HDFC123456"
     )
 
     @Test
