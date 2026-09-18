@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SMS ingestion path now; the payment-outcome notification is unaffected.
 
 ### Fixed
+- **The result screen no longer shows an internal id as the bank reference.**
+  Pay Contact and Scan QR payments showed a UUID there. It now also names the
+  dialled number when the SMS names no payee.
 - **The history "Bank reference" is the bank's number again.** It carried a
   `_<timestamp>` suffix from the row key, and the copy button copied it.
 - A failed payment's result screen no longer says "Paid to" — that heading

@@ -96,6 +96,10 @@ class TransactionDetector private constructor(context: Context) {
         Log.d(TAG, "Starting operation: $operationType")
 
         prefs.edit().apply {
+            // A window that expired without anyone calling shouldProcessSMS()
+            // is never cleared, so start from empty: a QR payment must not
+            // inherit the previous payment's phone number or session id.
+            clear()
             putBoolean(KEY_ACTIVE, true)
             putLong(KEY_START_TIME, System.currentTimeMillis())
             putString(KEY_OPERATION_TYPE, operationType)
