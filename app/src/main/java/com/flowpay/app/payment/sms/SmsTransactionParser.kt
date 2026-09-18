@@ -468,31 +468,45 @@ object SmsTransactionParser {
         return (nonBalance.ifEmpty { candidates }).first().second
     }
 
-    /** The bank's reference as written in the SMS, or null. */
-    internal fun extractBankReference(body: String): String? {
-        val patterns = listOf(
-            // The \b are load-bearing. Without them "id" matched inside
-            // "pa|id| to SHARMA STORE" and captured the following word, so a
-            // receipt for the most common template read "Transaction ID
-            // to_1785952502285" instead of the bank's reference (seen on a
-            // real device, 2026-08-05). The reference is the one field a user
-            // needs to match this payment against their bank statement.
-            "\\b(?:ref|txn|transaction|id)\\b\\s*(?:no|number|id)?\\s*[:.#]?\\s*([A-Z0-9]+)",
-            "([A-Z0-9]{10,})" // Generic pattern for long alphanumeric
-        )
+    /**
+     * A reference introduced by a keyword: "UPI Ref No 512233440091",
+     * "Refno 512233440091", "Txn ID: HDFC00123456", "UTR 512233440091".
+     *
+     * The word boundaries are load-bearing. Without them "id" matched inside
+     * "pa|id| to SHARMA STORE" and captured the following word (seen on a real
+     * device, 2026-08-05). The value must be at least 6 characters, so a
+     * keyword followed by an ordinary word ("txn of Rs 500") finds nothing,
+     * and [isPlausibleReference] rejects the rest.
+     */
+    private val KEYWORD_REFERENCE = Regex(
+        "\\b(?:utr|rrn|ref(?:no)?|reference|txn|transaction|id)\\b[\\s:.#-]*" +
+            "(?:(?:no|number|id)\\b[\\s:.#-]*)?([A-Z0-9]{6,})(?![A-Z0-9@])",
+        RegexOption.IGNORE_CASE
+    )
 
-        for (pattern in patterns) {
-            val regex = Regex(pattern, RegexOption.IGNORE_CASE)
-            val match = regex.find(body)
+    /**
+     * A bare 12-digit run, the length of a UPI RRN. Deliberately the only
+     * keyword-free form: the old "any 10+ alphanumeric run" fallback returned
+     * words ("successfully"), 11-digit helpline numbers and masked account
+     * numbers ("XXXXXX1234").
+     */
+    private val BARE_RRN = Regex("(?<![A-Za-z0-9])(\\d{12})(?![A-Za-z0-9])")
 
-            if (match != null && match.groups.size > 1) {
-                val reference = match.groups[1]?.value
-                if (!reference.isNullOrEmpty()) return reference
-            }
-        }
+    // Masked account or card numbers such as "XXXXXX1234".
+    private val MASKED_NUMBER = Regex("^[Xx*]+\\d+$")
 
-        return null
-    }
+    private fun isPlausibleReference(value: String): Boolean =
+        value.any(Char::isDigit) && !MASKED_NUMBER.matches(value)
+
+    /**
+     * The bank's reference as written in the SMS, or null. A missing reference
+     * is visible to the user; a wrong one is not, so anything doubtful is null.
+     */
+    internal fun extractBankReference(body: String): String? =
+        KEYWORD_REFERENCE.findAll(body)
+            .map { it.groupValues[1] }
+            .firstOrNull(::isPlausibleReference)
+            ?: BARE_RRN.find(body)?.groupValues?.get(1)
 
     internal fun extractUPIId(body: String): String? {
         val patterns = listOf(

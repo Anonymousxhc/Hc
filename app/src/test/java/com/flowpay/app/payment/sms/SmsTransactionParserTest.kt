@@ -442,6 +442,36 @@ class SmsTransactionParserTest {
         assertEquals(TransactionStatus.FAILED, result.status)
     }
 
+    // The old fallback took the first run of 10+ letters or digits, and the
+    // keyword pattern took whatever word followed "txn". Each body below
+    // produced a "Bank reference" that was a word, the bank's helpline, or
+    // part of the user's account number.
+    @Test
+    fun `no reference is invented from words, helplines or masked accounts`() {
+        listOf(
+            "Rs.500.00 debited successfully from your A/c XX1234 to shop@okaxis",
+            "Rs.500.00 debited from HDFC Bank A/c XX1234 to VPA shop@okaxis. Not you? Call 18002586161",
+            "Your txn of Rs.500 to SHOP via UPI is successful. A/c XXXXXX1234",
+            "Rs.500 debited from A/c XXXXXX1234 on 01-08-26",
+            "UPI ID: shop123@ybl Rs 500 debited"
+        ).forEach { body ->
+            assertNull(body, SmsTransactionParser.extractBankReference(body))
+        }
+    }
+
+    @Test
+    fun `references are read from the common keyword forms`() {
+        mapOf(
+            "Rs.500 debited. UPI Ref No 512233440091." to "512233440091",
+            "A/C X1234 debited by 500.0 trf to SHOP Refno 512233440091. -SBI" to "512233440091",
+            "Rs 500 debited. Ref.No.512233440091" to "512233440091",
+            "Txn ID: HDFC00123456 for Rs 500" to "HDFC00123456",
+            "Rs 500 sent to SHOP on 01-08-26 512233440091" to "512233440091"
+        ).forEach { (body, expected) ->
+            assertEquals(body, expected, SmsTransactionParser.extractBankReference(body))
+        }
+    }
+
     // A failure template used to leave the payee as "Kirana Store Has Failed"
     // — the lazy name group had nothing to stop it before end-of-string, so
     // the status words were captured and title-cased into the name. Seen on a
