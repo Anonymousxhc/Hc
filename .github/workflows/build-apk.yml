@@ -1,0 +1,67 @@
+name: Build my APK
+
+# Runs only when you press "Run workflow" in the Actions tab.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Add a secret named KEYSTORE_PASSWORD first (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+          mkdir -p signing
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            # Reuse your saved key so new builds install as updates.
+            echo "$KEYSTORE_BASE64" | base64 -d > signing/release.jks
+          else
+            # First run: create a new key and export it so you can save it.
+            keytool -genkeypair -v -keystore signing/release.jks \
+              -alias flowpay -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEYSTORE_PASSWORD" \
+              -dname "CN=Flowpay Personal Build"
+            base64 -w0 signing/release.jks > signing/KEYSTORE_BASE64.txt
+          fi
+          cat > keystore.properties <<EOF
+          storeFile=$PWD/signing/release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=flowpay
+          keyPassword=$KEYSTORE_PASSWORD
+          EOF
+
+      - name: Build release APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: flowpay-apk
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 7
+
+      - name: Upload new signing key (first run only)
+        if: hashFiles('signing/KEYSTORE_BASE64.txt') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: signing-key-SAVE-THIS
+          path: signing/KEYSTORE_BASE64.txt
+          retention-days: 7
