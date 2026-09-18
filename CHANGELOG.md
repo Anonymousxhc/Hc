@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SMS ingestion path now; the payment-outcome notification is unaffected.
 
 ### Fixed
+- **A static-QR payment no longer adopts any debit in the window.** An EMI or
+  card debit was recorded as the payment's success. A debit that does not name
+  the scanned payee is now marked Needs review, and one that does is accepted
+  whatever amount was typed into `*99#`.
 - **A bank reference is no longer invented from the SMS text.** Words like
   "successfully", the bank helpline and masked account numbers were read as
   the reference.

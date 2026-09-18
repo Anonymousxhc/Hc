@@ -442,6 +442,62 @@ class SmsTransactionParserTest {
         assertEquals(TransactionStatus.FAILED, result.status)
     }
 
+    // Scan QR: the amount is typed into the USSD menu, so for a static QR the
+    // app has nothing to check a debit against. Any debit in the window (an
+    // EMI, a card swipe) used to be recorded as this payment's SUCCESS.
+    @Test
+    fun `static QR debit that does not name the payee needs review`() {
+        val result = SmsTransactionParser.parse(
+            sender = "VM-HDFCBK",
+            body = "Rs.2,350.00 debited from HDFC Bank A/c **1234 for EMI ref 998877665544",
+            expectedAmount = "",
+            expectedPayeeVpa = "shop@okaxis"
+        )
+
+        assertNotNull(result)
+        assertEquals(TransactionStatus.NEEDS_REVIEW, result!!.status)
+    }
+
+    @Test
+    fun `static QR debit that names the payee is a success`() {
+        val result = SmsTransactionParser.parse(
+            sender = "VM-HDFCBK",
+            body = "Rs.120.00 debited from HDFC Bank A/c **1234 to VPA shop@okaxis UPI Ref No 512233440091",
+            expectedAmount = "",
+            expectedPayeeVpa = "shop@okaxis"
+        )
+
+        assertEquals(TransactionStatus.SUCCESS, result!!.status)
+    }
+
+    // A QR's amount is only a suggestion to the USSD menu. A confirmation
+    // naming the scanned payee must not be dropped because the user paid a
+    // different amount.
+    @Test
+    fun `QR amount mismatch is accepted when the SMS names the payee`() {
+        val result = SmsTransactionParser.parse(
+            sender = "VM-HDFCBK",
+            body = "Rs.450.00 debited from HDFC Bank A/c **1234 to VPA shop@okaxis UPI Ref No 512233440091",
+            expectedAmount = "500",
+            expectedPayeeVpa = "shop@okaxis"
+        )
+
+        assertEquals("450.00", result!!.amount)
+        assertEquals(TransactionStatus.SUCCESS, result.status)
+    }
+
+    @Test
+    fun `QR amount mismatch without the payee is still dropped`() {
+        val result = SmsTransactionParser.parse(
+            sender = "VM-HDFCBK",
+            body = "Rs.2,350.00 debited from HDFC Bank A/c **1234 for EMI ref 998877665544",
+            expectedAmount = "500",
+            expectedPayeeVpa = "shop@okaxis"
+        )
+
+        assertNull(result)
+    }
+
     // The old fallback took the first run of 10+ letters or digits, and the
     // keyword pattern took whatever word followed "txn". Each body below
     // produced a "Bank reference" that was a word, the bank's helpline, or

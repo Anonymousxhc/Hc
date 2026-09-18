@@ -260,7 +260,7 @@ class PaymentSessionManager(
             if (!current.isInProgress()) return null
             txnId = current.getTransactionIdValue() ?: return null
             val phone = current.getPhoneNumberValue() ?: parsed.phoneNumber ?: ""
-            val amount = current.getAmountValue() ?: parsed.amount
+            val amount = current.getAmountValue()?.ifEmpty { null } ?: parsed.amount
 
             _paymentState.value = when (newStatus) {
                 TransactionStatus.FAILED -> PaymentState.Failed(

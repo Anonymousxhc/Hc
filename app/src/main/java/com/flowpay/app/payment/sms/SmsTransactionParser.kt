@@ -231,13 +231,18 @@ object SmsTransactionParser {
      *
      * [clock] and [randomSuffix] are injected so ID generation is
      * deterministic under test; callers in production use the defaults.
+     *
+     * [expectedPayeeVpa] is set by the Scan QR flow, where the amount is typed
+     * into the USSD menu and the app never sees it. A debit naming that VPA is
+     * this payment whatever its amount. See [checkQrPayee].
      */
     fun parse(
         sender: String,
         body: String,
         expectedAmount: String?,
         clock: () -> Long = System::currentTimeMillis,
-        randomSuffix: () -> Int = { (1000..9999).random() }
+        randomSuffix: () -> Int = { (1000..9999).random() },
+        expectedPayeeVpa: String? = null
     ): SimpleTransaction? {
         val bankName = detectBank(sender, body) ?: return null
         if (!isTransactionMessage(body)) return null
@@ -254,21 +259,34 @@ object SmsTransactionParser {
         // Everything below applies only to an outgoing payment we are waiting
         // on. Credits are never a debit's confirmation and are left to the
         // downstream path, which ignores them.
+        var qrPayee = QrPayeeCheck.NOT_QR
         if (transactionType != "CREDIT") {
             // An amount alone is not a payment — see describesTransaction.
             if (!describesTransaction(body)) return null
 
+            qrPayee = checkQrPayee(body, expectedPayeeVpa)
             // A mismatched debit isn't our confirmation — return null so the
             // window stays open for the real one, instead of misattributing an
-            // unrelated bank alert (an auto-debit, a card decline).
-            if (!expectedAmount.isNullOrEmpty() && !isAmountMatching(amount, expectedAmount)) {
+            // unrelated bank alert (an auto-debit, a card decline). A debit
+            // that names the scanned payee is ours even if the user typed a
+            // different amount than the QR suggested.
+            if (!expectedAmount.isNullOrEmpty() &&
+                qrPayee != QrPayeeCheck.NAMED &&
+                !isAmountMatching(amount, expectedAmount)
+            ) {
                 return null
             }
         }
 
         // Derive the outcome from the SMS itself: a failure keyword records
-        // FAILED (banks send "Payment of Rs 500 failed"), otherwise SUCCESS.
-        val status = if (detectsFailure(body)) TransactionStatus.FAILED else TransactionStatus.SUCCESS
+        // FAILED (banks send "Payment of Rs 500 failed"). A QR payment with no
+        // amount to check and no payee in the SMS could be any debit that
+        // landed in the window, so it is never reported as a plain SUCCESS.
+        val status = when {
+            detectsFailure(body) -> TransactionStatus.FAILED
+            qrPayee == QrPayeeCheck.NOT_NAMED && expectedAmount.isNullOrEmpty() -> TransactionStatus.NEEDS_REVIEW
+            else -> TransactionStatus.SUCCESS
+        }
 
         return SimpleTransaction(
             transactionId = transactionId,
@@ -283,6 +301,15 @@ object SmsTransactionParser {
             phoneNumber = phoneNumber,
             bankRef = bankRef
         )
+    }
+
+    internal enum class QrPayeeCheck { NOT_QR, NAMED, NOT_NAMED }
+
+    /** Whether a debit names the payee scanned from the QR, if there was one. */
+    internal fun checkQrPayee(body: String, expectedPayeeVpa: String?): QrPayeeCheck = when {
+        expectedPayeeVpa.isNullOrBlank() -> QrPayeeCheck.NOT_QR
+        body.contains(expectedPayeeVpa.trim(), ignoreCase = true) -> QrPayeeCheck.NAMED
+        else -> QrPayeeCheck.NOT_NAMED
     }
 
     /**
