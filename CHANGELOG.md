@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SMS ingestion path now; the payment-outcome notification is unaffected.
 
 ### Fixed
+- **Ending the 123Pay call from the overlay no longer cancels the payment.**
+  The request may already be with the IVR, so the app now waits for the
+  bank's SMS instead of discarding it. The button reads "End call".
 - **A static-QR payment no longer adopts any debit in the window.** An EMI or
   card debit was recorded as the payment's success. A debit that does not name
   the scanned payee is now marked Needs review, and one that does is accepted

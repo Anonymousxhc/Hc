@@ -161,7 +161,7 @@
     <string name="overlay_amount">Amount</string>
     <string name="overlay_to">To</string>
     <string name="overlay_audio_muted">Call volume lowered</string>
-    <string name="overlay_terminate">Cancel payment</string>
+    <string name="overlay_terminate">End call</string>
     <string name="overlay_connecting">Connecting to the UPI service…</string>
     <string name="overlay_sending_request">Sending your payment request…</string>
     <string name="overlay_pin_notice">Flowpay never asks for your UPI PIN. Your bank will call you — enter your PIN on that call.</string>

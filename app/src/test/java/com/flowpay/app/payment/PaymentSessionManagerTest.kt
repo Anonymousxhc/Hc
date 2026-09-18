@@ -572,6 +572,42 @@ class PaymentSessionManagerTest {
         assertEquals("coordinator must be released on terminal state", 1, source.releaseCount)
     }
 
+    // The overlay only shows once the call is connected, by which point the
+    // DTMF request may already be with the IVR. Ending the call there must
+    // leave the session waiting for the bank's SMS, or a PIN entered on the
+    // bank's callback moves money that the app has already called cancelled.
+    @Test
+    fun `ending a connected call waits for the bank instead of cancelling`() = runTest {
+        val (manager, store, source) = newManager()
+        val txnId = manager.begin("9876543210", "100")!!
+        runCurrent()
+        source.callStarted(at = testScheduler.currentTime)
+        runCurrent()
+
+        manager.onUserEndedCall()
+        runCurrent()
+
+        assertTrue(manager.paymentState.value is PaymentState.WaitingForVerification)
+        assertEquals(TransactionStatus.PENDING, store.rows[txnId]!!.status)
+
+        assertEquals(txnId, manager.onSmsConfirmed(bankSms()))
+        runCurrent()
+        assertEquals(TransactionStatus.SUCCESS, store.rows[txnId]!!.status)
+    }
+
+    @Test
+    fun `ending the call before it connects still cancels`() = runTest {
+        val (manager, store, _) = newManager()
+        val txnId = manager.begin("9876543210", "100")!!
+        runCurrent()
+
+        manager.onUserEndedCall()
+        runCurrent()
+
+        assertTrue(manager.paymentState.value is PaymentState.Cancelled)
+        assertEquals(TransactionStatus.CANCELLED, store.rows[txnId]!!.status)
+    }
+
     @Test
     fun `onUserCancelled is a safe no-op with no active session`() = runTest {
         val (manager, _, _) = newManager()
